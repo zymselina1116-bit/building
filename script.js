@@ -546,22 +546,173 @@ function handlePhase5Click(x, y) {
 function finalizeAltitudeSelection() {
     console.log("ALTITUDE SHAPE SELECTED:", selectedAltitude);
 
-    // Placeholder for future 3D extrusion or height logic
-    // This is where advanced city-generation will be added later
-
-    draw();
+    // Generate procedural city based on altitude and line
+    clearCanvasOrScreen();
+    generateProceduralCity(selectedAltitude, nodes);
 }
 
 function drawPhase6() {
+    // This is now handled by generateProceduralCity()
+    // The city drawing happens directly in that function
+}
+
+// ===================================
+// PROCEDURAL CITY GENERATION
+// ===================================
+
+function clearCanvasOrScreen() {
+    clearCanvas();
+}
+
+function generateProceduralCity(altitude, linePoints) {
     clearCanvas();
 
-    // For now, just show confirmation message
+    // Grid configuration
+    const gridCols = 12;
+    const gridRows = 5;
+    const blockBaseWidth = 40;
+    const blockDepth = 50;
+    const gridSpacing = 10;
+
+    // Calculate grid starting position (centered)
+    const totalWidth = gridCols * (blockBaseWidth + gridSpacing);
+    const totalDepth = gridRows * (blockDepth + gridSpacing);
+    const startX = (canvas.width - totalWidth) / 2;
+    const startY = canvas.height * 0.6; // Position lower on screen
+
+    // Draw title
     ctx.fillStyle = LINE_COLOR;
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Altitude Shape: ' + selectedAltitude.toUpperCase(), canvas.width / 2, canvas.height / 2);
-    ctx.font = '12px sans-serif';
-    ctx.fillText('(3D extrusion will be added here)', canvas.width / 2, canvas.height / 2 + 30);
+    ctx.fillText('Procedural City Form — ' + altitude.toUpperCase() + ' Altitude', canvas.width / 2, 40);
+
+    // Generate and draw blocks
+    for (let row = 0; row < gridRows; row++) {
+        for (let col = 0; col < gridCols; col++) {
+            // Calculate block position
+            const blockX = startX + col * (blockBaseWidth + gridSpacing);
+            const blockY = startY + row * (blockDepth + gridSpacing);
+
+            // Calculate block height based on altitude pattern and distance to line
+            const height = computeBlockHeight(col, row, gridCols, gridRows, altitude, linePoints, blockX, blockY);
+
+            // Draw the block
+            drawCityBlock(blockX, blockY, blockBaseWidth, blockDepth, height);
+        }
+    }
+
+    // Draw original line reference at top of screen (small)
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    const scale = 0.15;
+    const offsetX = canvas.width / 2 - (linePoints[0].x * scale);
+    const offsetY = 80;
+
+    ctx.moveTo(linePoints[0].x * scale + offsetX, linePoints[0].y * scale + offsetY);
+    for (let i = 1; i < linePoints.length; i++) {
+        ctx.lineTo(linePoints[i].x * scale + offsetX, linePoints[i].y * scale + offsetY);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+function computeBlockHeight(col, row, gridCols, gridRows, altitude, linePoints, blockX, blockY) {
+    // Base height range
+    const minHeight = 30;
+    const maxHeight = 200;
+
+    // Calculate normalized position (0 to 1)
+    const normalizedX = col / (gridCols - 1);
+    const normalizedY = row / (gridRows - 1);
+
+    // Calculate base height from altitude pattern
+    let baseHeight = 0;
+
+    if (altitude === 'linear') {
+        // Linear: increases from left to right
+        baseHeight = minHeight + (maxHeight - minHeight) * normalizedX;
+
+    } else if (altitude === 'curved') {
+        // Curved: smooth arc, highest in center
+        const arcValue = Math.sin(normalizedX * Math.PI);
+        baseHeight = minHeight + (maxHeight - minHeight) * arcValue;
+
+    } else if (altitude === 'wavy') {
+        // Wavy: sine wave pattern
+        const waveValue = (Math.sin(normalizedX * Math.PI * 3) + 1) / 2;
+        baseHeight = minHeight + (maxHeight - minHeight) * waveValue;
+
+    } else if (altitude === 'spiked') {
+        // Spiked: sharp random spikes
+        const spikeValue = Math.abs(Math.sin(normalizedX * Math.PI * 6 + col * 0.5));
+        const randomFactor = 0.7 + Math.random() * 0.6;
+        baseHeight = minHeight + (maxHeight - minHeight) * spikeValue * randomFactor;
+    }
+
+    // Add variation based on depth (row)
+    const depthFactor = 1 - (row / gridRows) * 0.3; // Front rows slightly taller
+    baseHeight *= depthFactor;
+
+    // Calculate distance to user's edited line
+    const distanceToLine = calculateDistanceToLine(blockX, blockY, linePoints);
+    const maxDistance = canvas.width / 2;
+    const normalizedDistance = Math.min(distanceToLine / maxDistance, 1);
+
+    // Modify height based on proximity to line
+    let heightModifier = 1.0;
+    if (normalizedDistance < 0.3) {
+        // Close to line: increase height by 20%
+        heightModifier = 1.2;
+    } else if (normalizedDistance > 0.7) {
+        // Far from line: decrease height by 20%
+        heightModifier = 0.8;
+    }
+
+    return baseHeight * heightModifier;
+}
+
+function calculateDistanceToLine(blockX, blockY, linePoints) {
+    let minDistance = Infinity;
+
+    // Find minimum distance to any segment of the line
+    for (let i = 0; i < linePoints.length - 1; i++) {
+        const distance = distanceToSegment(blockX, blockY, linePoints[i], linePoints[i + 1]);
+        minDistance = Math.min(minDistance, distance);
+    }
+
+    return minDistance;
+}
+
+function drawCityBlock(x, y, width, depth, height) {
+    // Draw block as a simple 2.5D rectangle (isometric-style)
+
+    // Main block face (front)
+    ctx.fillStyle = LINE_COLOR;
+    ctx.globalAlpha = 0.7;
+    ctx.fillRect(x, y - height, width, height);
+
+    // Top face (to give 3D effect)
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = LINE_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(x, y - height);
+    ctx.lineTo(x + width, y - height);
+    ctx.lineTo(x + width, y - height - depth * 0.3);
+    ctx.lineTo(x, y - height - depth * 0.3);
+    ctx.closePath();
+    ctx.fill();
+
+    // Outline for definition
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = BG_COLOR;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y - height, width, height);
+
+    ctx.globalAlpha = 1;
 }
 
 // ===================================
