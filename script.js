@@ -14,8 +14,9 @@ const BG_COLOR = '#121212';
 const LINE_COLOR = '#E7E0C9';
 
 // State
-let phase = 1; // 1: Choose style, 2: Generated line, 3: Editing, 4: Plane structure
+let phase = 1; // 1: Choose style, 2: Generated line, 3: Editing, 4: Plane structure, 5: Altitude selection, 6: Final
 let selectedStyle = null; // 'sharp', 'straight', 'flow'
+let selectedAltitude = null; // 'linear', 'curved', 'wavy', 'spiked'
 let nodes = []; // Control points for the line
 let draggedNode = null;
 let inactivityTimer = null;
@@ -49,6 +50,42 @@ const styleOptions = [
         x: canvas.width / 2 + 80,
         y: canvas.height / 2,
         width: 120,
+        height: 80
+    }
+];
+
+// Altitude options for Phase 5
+const altitudeOptions = [
+    {
+        name: 'Linear Altitude',
+        type: 'linear',
+        x: canvas.width / 2 - 240,
+        y: canvas.height / 2,
+        width: 140,
+        height: 80
+    },
+    {
+        name: 'Curved Altitude',
+        type: 'curved',
+        x: canvas.width / 2 - 80,
+        y: canvas.height / 2,
+        width: 140,
+        height: 80
+    },
+    {
+        name: 'Wavy Altitude',
+        type: 'wavy',
+        x: canvas.width / 2 + 80,
+        y: canvas.height / 2,
+        width: 140,
+        height: 80
+    },
+    {
+        name: 'Spiked Altitude',
+        type: 'spiked',
+        x: canvas.width / 2 + 240,
+        y: canvas.height / 2,
+        width: 140,
         height: 80
     }
 ];
@@ -292,6 +329,12 @@ function distanceToSegment(px, py, p1, p2) {
 function generatePlaneStructure() {
     phase = 4;
     draw();
+
+    // Auto-transition to altitude selection after 1.5 seconds
+    setTimeout(() => {
+        phase = 5;
+        draw();
+    }, 1500);
 }
 
 function drawPhase4() {
@@ -413,6 +456,115 @@ function drawOffsetLine(offset) {
 }
 
 // ===================================
+// PHASE 5: ALTITUDE SHAPE SELECTION
+// ===================================
+
+function drawPhase5() {
+    clearCanvas();
+
+    altitudeOptions.forEach(option => {
+        // Draw option box
+        ctx.strokeStyle = LINE_COLOR;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(option.x - option.width / 2, option.y - option.height / 2, option.width, option.height);
+
+        // Draw label
+        ctx.fillStyle = LINE_COLOR;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(option.name, option.x, option.y - option.height / 2 - 15);
+
+        // Draw visual sample
+        drawAltitudeSample(option);
+    });
+
+    // Draw instruction at top
+    ctx.fillStyle = LINE_COLOR;
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Choose Altitude Shape', canvas.width / 2, 60);
+}
+
+function drawAltitudeSample(option) {
+    const cx = option.x;
+    const cy = option.y;
+
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    if (option.type === 'linear') {
+        // Straight rising diagonal line
+        ctx.moveTo(cx - 30, cy + 15);
+        ctx.lineTo(cx + 30, cy - 15);
+    } else if (option.type === 'curved') {
+        // Smooth arc curve
+        ctx.moveTo(cx - 30, cy + 10);
+        ctx.bezierCurveTo(cx - 10, cy + 10, cx - 10, cy - 20, cx + 30, cy - 20);
+    } else if (option.type === 'wavy') {
+        // Sine wave pattern
+        ctx.moveTo(cx - 35, cy);
+        for (let i = 0; i <= 20; i++) {
+            const x = cx - 35 + i * 3.5;
+            const y = cy + Math.sin(i * 0.5) * 15;
+            ctx.lineTo(x, y);
+        }
+    } else if (option.type === 'spiked') {
+        // Sharp jagged zig-zag
+        ctx.moveTo(cx - 30, cy + 10);
+        ctx.lineTo(cx - 20, cy - 15);
+        ctx.lineTo(cx - 10, cy + 5);
+        ctx.lineTo(cx, cy - 20);
+        ctx.lineTo(cx + 10, cy);
+        ctx.lineTo(cx + 20, cy - 15);
+        ctx.lineTo(cx + 30, cy + 10);
+    }
+
+    ctx.stroke();
+}
+
+function handlePhase5Click(x, y) {
+    for (let option of altitudeOptions) {
+        const left = option.x - option.width / 2;
+        const right = option.x + option.width / 2;
+        const top = option.y - option.height / 2;
+        const bottom = option.y + option.height / 2;
+
+        if (x >= left && x <= right && y >= top && y <= bottom) {
+            selectedAltitude = option.type;
+            phase = 6;
+            finalizeAltitudeSelection();
+            return;
+        }
+    }
+}
+
+// ===================================
+// PHASE 6: FINALIZE ALTITUDE
+// ===================================
+
+function finalizeAltitudeSelection() {
+    console.log("ALTITUDE SHAPE SELECTED:", selectedAltitude);
+
+    // Placeholder for future 3D extrusion or height logic
+    // This is where advanced city-generation will be added later
+
+    draw();
+}
+
+function drawPhase6() {
+    clearCanvas();
+
+    // For now, just show confirmation message
+    ctx.fillStyle = LINE_COLOR;
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Altitude Shape: ' + selectedAltitude.toUpperCase(), canvas.width / 2, canvas.height / 2);
+    ctx.font = '12px sans-serif';
+    ctx.fillText('(3D extrusion will be added here)', canvas.width / 2, canvas.height / 2 + 30);
+}
+
+// ===================================
 // MOUSE EVENT HANDLERS
 // ===================================
 
@@ -425,6 +577,8 @@ canvas.addEventListener('mousedown', (e) => {
         handlePhase1Click(x, y);
     } else if (phase === 3) {
         handlePhase3Click(x, y);
+    } else if (phase === 5) {
+        handlePhase5Click(x, y);
     }
 });
 
@@ -476,6 +630,10 @@ function draw() {
         drawPhase3();
     } else if (phase === 4) {
         drawPhase4();
+    } else if (phase === 5) {
+        drawPhase5();
+    } else if (phase === 6) {
+        drawPhase6();
     }
 }
 
@@ -495,6 +653,16 @@ window.addEventListener('resize', () => {
         styleOptions[1].y = canvas.height / 2;
         styleOptions[2].x = canvas.width / 2 + 80;
         styleOptions[2].y = canvas.height / 2;
+    } else if (phase === 5) {
+        // Recalculate altitude option positions
+        altitudeOptions[0].x = canvas.width / 2 - 240;
+        altitudeOptions[0].y = canvas.height / 2;
+        altitudeOptions[1].x = canvas.width / 2 - 80;
+        altitudeOptions[1].y = canvas.height / 2;
+        altitudeOptions[2].x = canvas.width / 2 + 80;
+        altitudeOptions[2].y = canvas.height / 2;
+        altitudeOptions[3].x = canvas.width / 2 + 240;
+        altitudeOptions[3].y = canvas.height / 2;
     }
 
     draw();
